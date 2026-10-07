@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: service-b-sa
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-b
+  template:
+    metadata:
+      labels:
+        app: service-b
+      annotations:
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: service-b-sa
+      containers:
+        - name: service-b
+          image: service-b:local
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b
+  namespace: default
+spec:
+  selector:
+    app: service-b
+  ports:
+    - port: 8080
+      targetPort: 8080

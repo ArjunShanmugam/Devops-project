@@ -1,0 +1,416 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Module 1 — Live Traffic Observer</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    /* ── Reset & base ────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 20px 40px;
+      gap: 20px;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      width: 100%;
+      max-width: 900px;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #58a6ff;
+    }
+    header p.subtitle {
+      margin-top: 4px;
+      font-size: 1rem;
+      color: #8b949e;
+    }
+
+    /* ── Status bar ──────────────────────────────────────────────────── */
+    #status-bar {
+      width: 100%;
+      max-width: 900px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 28px;
+      font-size: 0.88rem;
+      color: #8b949e;
+    }
+    #status-bar span { display: flex; align-items: center; gap: 6px; }
+    #status-bar strong { color: #c9d1d9; }
+    #dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #3fb950;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #3fb95099;
+    }
+    #dot.stale { background: #f0883e; box-shadow: 0 0 6px #f0883e88; }
+    #dot.error { background: #f85149; box-shadow: 0 0 6px #f8514988; }
+
+    /* ── Graph card ──────────────────────────────────────────────────── */
+    #graph-card {
+      width: 100%;
+      max-width: 900px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 12px;
+      position: relative;
+    }
+    #graph-card svg {
+      display: block;
+      width: 100%;
+      height: 420px;
+    }
+
+    /* ── No-traffic overlay ──────────────────────────────────────────── */
+    #no-traffic {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: #21262d;
+      border: 1px solid #f0883e55;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 1rem;
+      color: #f0883e;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    /* ── SVG internals ───────────────────────────────────────────────── */
+    .node-circle {
+      stroke-width: 2.5;
+    }
+    .node-label {
+      font-size: 15px;
+      font-weight: 600;
+      fill: #e6edf3;
+      text-anchor: middle;
+      pointer-events: none;
+      dominant-baseline: central;
+    }
+    .edge-line {
+      stroke-width: 2.5;
+      fill: none;
+    }
+    .edge-label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: #e6edf3;
+      text-anchor: middle;
+      pointer-events: none;
+      dominant-baseline: central;
+    }
+    .edge-label-bg {
+      fill: #161b22;
+    }
+
+    /* ── Table ───────────────────────────────────────────────────────── */
+    #table-card {
+      width: 100%;
+      max-width: 900px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #table-card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #8b949e;
+      padding: 12px 18px 10px;
+      border-bottom: 1px solid #30363d;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    thead th {
+      background: #0d1117;
+      color: #8b949e;
+      text-align: left;
+      padding: 9px 16px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border-bottom: 1px solid #30363d;
+    }
+    tbody tr { border-bottom: 1px solid #21262d; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td {
+      padding: 10px 16px;
+      color: #c9d1d9;
+      font-variant-numeric: tabular-nums;
+    }
+    .count-cell {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+    .method-get  { color: #3fb950; font-weight: 600; }
+    .method-post { color: #f0883e; font-weight: 600; }
+    .code-ok { color: #3fb950; }
+    #empty-row td {
+      text-align: center;
+      color: #484f58;
+      padding: 20px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Module 1 — Live Traffic Observer</h1>
+    <p class="subtitle">Istio service-mesh traffic · auto-refreshes every 5 s</p>
+  </header>
+
+  <div id="status-bar">
+    <span><div id="dot"></div></span>
+    <span>Last updated: <strong id="ts-updated">—</strong></span>
+    <span>Window: <strong id="ts-window">—</strong></span>
+    <span id="err-msg" style="color:#f85149;display:none"></span>
+  </div>
+
+  <div id="graph-card">
+    <svg id="graph-svg"></svg>
+    <div id="no-traffic">No traffic in current window</div>
+  </div>
+
+  <div id="table-card">
+    <h2>Current Window Edges</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Destination</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Requests</th>
+          <th>Last Seen</th>
+        </tr>
+      </thead>
+      <tbody id="edge-table-body">
+        <tr id="empty-row"><td colspan="6">Waiting for data…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+<script>
+// ── Fixed node positions (triangle, SVG coords) ───────────────────────────
+// SVG viewBox is 860 x 420. Triangle vertices:
+//   service-a  top-centre
+//   service-b  bottom-left
+//   service-c  bottom-right
+const NODES = {
+  "service-a": { id: "service-a", x: 430, y: 80,  color: "#1f6feb", stroke: "#58a6ff" },
+  "service-b": { id: "service-b", x: 145, y: 340, color: "#388bfd22", stroke: "#3fb950" },
+  "service-c": { id: "service-c", x: 715, y: 340, color: "#388bfd22", stroke: "#bc8cff" },
+};
+const NODE_R = 48;   // node radius
+const ARROW_ID = "arrowhead";
+
+// ── SVG setup ─────────────────────────────────────────────────────────────
+const svg = d3.select("#graph-svg")
+  .attr("viewBox", "0 0 860 420")
+  .attr("preserveAspectRatio", "xMidYMid meet");
+
+// Arrowhead marker
+const defs = svg.append("defs");
+defs.append("marker")
+  .attr("id", ARROW_ID)
+  .attr("viewBox", "0 -5 10 10")
+  .attr("refX", 10)
+  .attr("refY", 0)
+  .attr("markerWidth", 7)
+  .attr("markerHeight", 7)
+  .attr("orient", "auto")
+  .append("path")
+    .attr("d", "M0,-5L10,0L0,5")
+    .attr("fill", "#58a6ff");
+
+// Layers — draw edges behind nodes
+const edgeLayer = svg.append("g").attr("id", "edge-layer");
+const nodeLayer = svg.append("g").attr("id", "node-layer");
+
+// ── Draw static nodes (they never change) ─────────────────────────────────
+Object.values(NODES).forEach(n => {
+  const g = nodeLayer.append("g");
+
+  g.append("circle")
+    .attr("cx", n.x).attr("cy", n.y).attr("r", NODE_R)
+    .attr("fill", n.color)
+    .attr("stroke", n.stroke)
+    .attr("stroke-width", 2.5)
+    .attr("class", "node-circle");
+
+  g.append("text")
+    .attr("x", n.x).attr("y", n.y)
+    .attr("class", "node-label")
+    .text(n.id);
+});
+
+// ── Edge geometry helpers ─────────────────────────────────────────────────
+function edgeGeometry(src, dst) {
+  const dx = dst.x - src.x;
+  const dy = dst.y - src.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const ux = dx / dist, uy = dy / dist;
+
+  // Offset perpendicular so bidirectional edges don't overlap
+  const perp = 14;
+  const px = -uy * perp, py = ux * perp;
+
+  const x1 = src.x + ux * NODE_R + px;
+  const y1 = src.y + uy * NODE_R + py;
+  // Stop the arrow before the node edge (marker refX already handles the tip)
+  const x2 = dst.x - ux * (NODE_R + 4) + px;
+  const y2 = dst.y - uy * (NODE_R + 4) + py;
+
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+
+  return { x1, y1, x2, y2, mx, my };
+}
+
+// ── Redraw edges ──────────────────────────────────────────────────────────
+function redrawEdges(edges) {
+  edgeLayer.selectAll("*").remove();
+
+  const noTraffic = !edges || edges.length === 0;
+  document.getElementById("no-traffic").style.display = noTraffic ? "block" : "none";
+  if (noTraffic) return;
+
+  edges.forEach(e => {
+    const src = NODES[e.source_workload];
+    const dst = NODES[e.destination_workload];
+    if (!src || !dst) return; // unknown node — skip silently
+
+    const g = edgeGeometry(src, dst);
+    const label = `${e.method} · ${e.request_count}`;
+
+    // Edge line
+    edgeLayer.append("line")
+      .attr("class", "edge-line")
+      .attr("x1", g.x1).attr("y1", g.y1)
+      .attr("x2", g.x2).attr("y2", g.y2)
+      .attr("stroke", "#58a6ff")
+      .attr("marker-end", `url(#${ARROW_ID})`);
+
+    // Label background pill
+    const labW = label.length * 7.5 + 14;
+    const labH = 22;
+    edgeLayer.append("rect")
+      .attr("class", "edge-label-bg")
+      .attr("x", g.mx - labW/2).attr("y", g.my - labH/2)
+      .attr("width", labW).attr("height", labH)
+      .attr("rx", 4).attr("ry", 4)
+      .attr("stroke", "#30363d").attr("stroke-width", 1);
+
+    // Label text
+    edgeLayer.append("text")
+      .attr("class", "edge-label")
+      .attr("x", g.mx).attr("y", g.my)
+      .text(label);
+  });
+}
+
+// ── Redraw table ──────────────────────────────────────────────────────────
+function redrawTable(edges) {
+  const tbody = document.getElementById("edge-table-body");
+  tbody.innerHTML = "";
+
+  if (!edges || edges.length === 0) {
+    tbody.innerHTML = `<tr id="empty-row"><td colspan="6">No edges in current window — k6 not running?</td></tr>`;
+    return;
+  }
+
+  edges.forEach(e => {
+    const methodClass = e.method === "GET" ? "method-get" : "method-post";
+    const codeClass   = String(e.response_code).startsWith("2") ? "code-ok" : "";
+    const lastSeen    = e.last_seen ? new Date(e.last_seen).toLocaleTimeString() : "—";
+    const row = `
+      <tr>
+        <td>${e.source_workload}</td>
+        <td>${e.destination_workload}</td>
+        <td class="${methodClass}">${e.method}</td>
+        <td class="${codeClass}">${e.response_code}</td>
+        <td class="count-cell">${e.request_count}</td>
+        <td>${lastSeen}</td>
+      </tr>`;
+    tbody.insertAdjacentHTML("beforeend", row);
+  });
+}
+
+// ── Status bar update ─────────────────────────────────────────────────────
+function fmtTime(iso) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleTimeString(); }
+  catch { return iso; }
+}
+
+function updateStatus(data) {
+  const dot   = document.getElementById("dot");
+  const errEl = document.getElementById("err-msg");
+
+  document.getElementById("ts-updated").textContent = new Date().toLocaleTimeString();
+
+  if (!data.ok) {
+    dot.className = "error";
+    errEl.style.display = "";
+    errEl.textContent = data.error || "Unknown error";
+    document.getElementById("ts-window").textContent = "—";
+  } else {
+    dot.className = "";
+    errEl.style.display = "none";
+    const ws = fmtTime(data.window_start);
+    const we = fmtTime(data.window_end);
+    document.getElementById("ts-window").textContent = `${ws} → ${we}`;
+  }
+}
+
+// ── Poll loop ─────────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const resp = await fetch("/api/graph", { cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    updateStatus(data);
+    redrawEdges(data.edges || []);
+    redrawTable(data.edges || []);
+  } catch (err) {
+    const dot = document.getElementById("dot");
+    dot.className = "error";
+    document.getElementById("err-msg").style.display = "";
+    document.getElementById("err-msg").textContent = `Fetch error: ${err.message}`;
+  }
+}
+
+// Initial load + 5-second interval
+poll();
+setInterval(poll, 5000);
+</script>
+</body>
+</html>
