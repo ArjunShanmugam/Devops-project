@@ -1,0 +1,34 @@
+{
+  "policies": [
+    {
+      "service": "service-b",
+      "namespace": "default",
+      "rules": [
+        {
+          "source_principal": "cluster.local/ns/default/sa/service-a-sa",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "source_principal": "cluster.local/ns/default/sa/service-c-sa",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    {
+      "service": "service-c",
+      "namespace": "default",
+      "rules": [
+        {
+          "source_principal": "cluster.local/ns/default/sa/service-b-sa",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    }
+  ]
+}

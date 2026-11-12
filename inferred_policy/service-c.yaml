@@ -1,0 +1,27 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: service-c-policy
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: service-c
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/default/sa/service-a-sa
+    to:
+    - operation:
+        methods:
+        - GET
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/default/sa/service-b-sa
+    to:
+    - operation:
+        methods:
+        - POST

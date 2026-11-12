@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-11-12T06:38:17.527640+00:00",
+  "findings": [
+    {
+      "service": "service-b",
+      "type": "over_permissive",
+      "detail": "Enforced policy allows cluster.local/ns/default/sa/service-c-sa \u2192 service-b [POST] but no matching inferred rule exists. Rule has been stale for 10 consecutive observation window(s).",
+      "severity": "high",
+      "suggested_action": "remove_rule",
+      "rule_ref": {
+        "source_principal": "cluster.local/ns/default/sa/service-c-sa",
+        "methods": [
+          "POST"
+        ]
+      }
+    },
+    {
+      "service": "service-c",
+      "type": "under_permissive",
+      "detail": "Inferred policy requires cluster.local/ns/default/sa/service-a-sa \u2192 service-c [GET] but no matching enforced rule exists (breakage risk).",
+      "severity": "high",
+      "suggested_action": "add_rule",
+      "rule_ref": {
+        "source_principal": "cluster.local/ns/default/sa/service-a-sa",
+        "methods": [
+          "GET"
+        ]
+      }
+    }
+  ]
+}

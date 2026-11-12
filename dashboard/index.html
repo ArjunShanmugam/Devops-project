@@ -1,416 +1,878 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Module 1 — Live Traffic Observer</title>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-  <style>
-    /* ── Reset & base ────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zero-Trust Policy Synthesis Engine</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  /* ── Reset & base ────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:        #F6F8FC;
+    --sidebar:   #FFFFFF;
+    --primary:   #2563EB;
+    --primary-light: #EFF6FF;
+    --success:   #10B981;
+    --warning:   #F59E0B;
+    --danger:    #EF4444;
+    --purple:    #8B5CF6;
+    --card:      #FFFFFF;
+    --text:      #0F172A;
+    --muted:     #64748B;
+    --border:    #E2E8F0;
+    --radius:    16px;
+    --shadow:    0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+  }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    font-size: 14px;
+  }
 
-    body {
-      background: #0d1117;
-      color: #e6edf3;
-      font-family: "Segoe UI", system-ui, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 28px 20px 40px;
-      gap: 20px;
-    }
+  /* ── Sidebar ─────────────────────────────────────────────────────── */
+  .sidebar {
+    width: 68px;
+    min-height: 100vh;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    gap: 8px;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+  .sidebar-logo {
+    width: 40px; height: 40px;
+    background: transparent;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .sidebar-logo svg { color: var(--primary); }
+  .nav-item {
+    width: 48px; height: 44px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    color: #94A3B8;
+    position: relative;
+  }
+  .nav-item:hover { background: #F1F5F9; color: #334155; }
+  .nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary);
+    border-left: 3px solid var(--primary);
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+  }
+  .nav-item svg { width: 20px; height: 20px; stroke: currentColor; fill: none;
+                  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .nav-spacer { flex: 1; }
 
-    /* ── Header ──────────────────────────────────────────────────────── */
-    header {
-      text-align: center;
-      width: 100%;
-      max-width: 900px;
-    }
-    header h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      color: #58a6ff;
-    }
-    header p.subtitle {
-      margin-top: 4px;
-      font-size: 1rem;
-      color: #8b949e;
-    }
+  /* ── Main layout ─────────────────────────────────────────────────── */
+  .main {
+    margin-left: 68px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
 
-    /* ── Status bar ──────────────────────────────────────────────────── */
-    #status-bar {
-      width: 100%;
-      max-width: 900px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 10px 18px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 28px;
-      font-size: 0.88rem;
-      color: #8b949e;
-    }
-    #status-bar span { display: flex; align-items: center; gap: 6px; }
-    #status-bar strong { color: #c9d1d9; }
-    #dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: #3fb950;
-      flex-shrink: 0;
-      box-shadow: 0 0 6px #3fb95099;
-    }
-    #dot.stale { background: #f0883e; box-shadow: 0 0 6px #f0883e88; }
-    #dot.error { background: #f85149; box-shadow: 0 0 6px #f8514988; }
+  /* ── Header ──────────────────────────────────────────────────────── */
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .header-title-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #F1F5F9;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+  }
+  .header-title-pill span { color: #94A3B8; font-weight: 400; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #E2E8F0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #475569;
+    position: relative;
+  }
+  .header-avatar::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #10B981;
+    border: 2px solid #FFFFFF;
+  }
+  .header-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-title span { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .status-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    background: #ECFDF5; color: #15803D;
+  }
+  .status-badge.offline { background: #FEF2F2; color: #DC2626; }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: .4; }
+  }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .refresh-info { font-size: 11px; color: var(--muted); }
 
-    /* ── Graph card ──────────────────────────────────────────────────── */
-    #graph-card {
-      width: 100%;
-      max-width: 900px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 12px;
-      position: relative;
-    }
-    #graph-card svg {
-      display: block;
-      width: 100%;
-      height: 420px;
-    }
+  /* ── Page content ────────────────────────────────────────────────── */
+  .content { padding: 24px 28px; flex: 1; }
 
-    /* ── No-traffic overlay ──────────────────────────────────────────── */
-    #no-traffic {
-      display: none;
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background: #21262d;
-      border: 1px solid #f0883e55;
-      border-radius: 8px;
-      padding: 12px 24px;
-      font-size: 1rem;
-      color: #f0883e;
-      pointer-events: none;
-      white-space: nowrap;
-    }
+  /* ── Stat cards ──────────────────────────────────────────────────── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: transform .15s;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .stat-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none;
+                   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .stat-icon.blue   { background: #EFF6FF; color: var(--primary); }
+  .stat-icon.green  { background: #F0FDF4; color: var(--success); }
+  .stat-icon.orange { background: #FFFBEB; color: var(--warning); }
+  .stat-icon.purple { background: #F5F3FF; color: var(--purple); }
+  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
+  .stat-value { font-size: 28px; font-weight: 700; line-height: 1; color: var(--text); }
 
-    /* ── SVG internals ───────────────────────────────────────────────── */
-    .node-circle {
-      stroke-width: 2.5;
-    }
-    .node-label {
-      font-size: 15px;
-      font-weight: 600;
-      fill: #e6edf3;
-      text-anchor: middle;
-      pointer-events: none;
-      dominant-baseline: central;
-    }
-    .edge-line {
-      stroke-width: 2.5;
-      fill: none;
-    }
-    .edge-label {
-      font-size: 13px;
-      font-weight: 700;
-      fill: #e6edf3;
-      text-anchor: middle;
-      pointer-events: none;
-      dominant-baseline: central;
-    }
-    .edge-label-bg {
-      fill: #161b22;
-    }
+  /* ── Charts row ──────────────────────────────────────────────────── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .charts-row { grid-template-columns: 1fr; } }
 
-    /* ── Table ───────────────────────────────────────────────────────── */
-    #table-card {
-      width: 100%;
-      max-width: 900px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    #table-card h2 {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #8b949e;
-      padding: 12px 18px 10px;
-      border-bottom: 1px solid #30363d;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.95rem;
-    }
-    thead th {
-      background: #0d1117;
-      color: #8b949e;
-      text-align: left;
-      padding: 9px 16px;
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      border-bottom: 1px solid #30363d;
-    }
-    tbody tr { border-bottom: 1px solid #21262d; }
-    tbody tr:last-child { border-bottom: none; }
-    tbody td {
-      padding: 10px 16px;
-      color: #c9d1d9;
-      font-variant-numeric: tabular-nums;
-    }
-    .count-cell {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #58a6ff;
-    }
-    .method-get  { color: #3fb950; font-weight: 600; }
-    .method-post { color: #f0883e; font-weight: 600; }
-    .code-ok { color: #3fb950; }
-    #empty-row td {
-      text-align: center;
-      color: #484f58;
-      padding: 20px;
-      font-style: italic;
-    }
-  </style>
+  /* ── Card ────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .card-badge {
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
+    background: #EFF6FF; color: var(--primary);
+  }
+
+  /* ── Area chart ──────────────────────────────────────────────────── */
+  #traffic-chart { width: 100%; height: 220px; }
+  .chart-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 60px 0; }
+
+  /* ── Donut chart ─────────────────────────────────────────────────── */
+  #donut-chart { width: 100%; height: 220px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Bottom row ──────────────────────────────────────────────────── */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .bottom-row { grid-template-columns: 1fr; } }
+
+  /* ── Findings table ──────────────────────────────────────────────── */
+  .findings-table { width: 100%; border-collapse: collapse; }
+  .findings-table th {
+    text-align: left; font-size: 11px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  .findings-table td { padding: 10px 12px; font-size: 13px; }
+  .findings-table tbody tr { border-bottom: 1px solid #F3F4F6; }
+  .findings-table tbody tr:nth-child(even) { background: #FAFBFD; }
+  .findings-table tbody tr { border-left: 3px solid transparent; }
+  .findings-table tbody tr.sev-high   { border-left-color: var(--danger); }
+  .findings-table tbody tr.sev-medium { border-left-color: var(--warning); }
+  .findings-table tbody tr.sev-low    { border-left-color: var(--primary); }
+  .severity-badge {
+    display: inline-block;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .severity-badge.high   { background: #FEF2F2; color: var(--danger); }
+  .severity-badge.medium { background: #FFFBEB; color: var(--warning); }
+  .severity-badge.low    { background: #EFF6FF; color: var(--primary); }
+  .type-tag {
+    font-size: 11px; color: var(--muted); background: #F3F4F6;
+    padding: 1px 6px; border-radius: 4px;
+  }
+  .table-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 32px; }
+
+  /* ── Activity log ────────────────────────────────────────────────── */
+  .activity-log { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
+  .activity-item {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 12px; line-height: 1.5;
+  }
+  .activity-time { color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .activity-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-top: 4px; flex-shrink: 0;
+  }
+  .activity-dot.info   { background: var(--primary); }
+  .activity-dot.ok     { background: var(--success); }
+  .activity-dot.warn   { background: var(--warning); }
+  .activity-dot.danger { background: var(--danger); }
+  .activity-text { color: var(--text); }
+  .activity-empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+
+  /* ── Tooltip ─────────────────────────────────────────────────────── */
+  .d3-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--sidebar);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity .15s;
+    z-index: 200;
+  }
+
+  /* ── Scrollbar ───────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+</style>
 </head>
 <body>
 
-  <header>
-    <h1>Module 1 — Live Traffic Observer</h1>
-    <p class="subtitle">Istio service-mesh traffic · auto-refreshes every 5 s</p>
+<!-- ── Sidebar ───────────────────────────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  </div>
+
+  <!-- Home -->
+  <div class="nav-item active" title="Dashboard">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+  </div>
+  <!-- Traffic -->
+  <div class="nav-item" title="Traffic">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/></svg>
+  </div>
+  <!-- Policies -->
+  <div class="nav-item" title="Policies">
+    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+  </div>
+  <!-- Findings -->
+  <div class="nav-item" title="Findings">
+    <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  </div>
+  <!-- GitOps -->
+  <div class="nav-item" title="GitOps">
+    <svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/>
+      <circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+      <path d="M18 9a9 9 0 01-9 9"/></svg>
+  </div>
+  <div class="nav-spacer"></div>
+  <!-- Settings -->
+  <div class="nav-item" title="Settings">
+    <svg viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </svg>
+  </div>
+</nav>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────── -->
+<div class="main">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-title-pill">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Zero-Trust Policy Engine
+        <span>• v1.0 Live</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="refresh-info" id="last-updated">Updating…</span>
+      <div class="status-badge" id="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">Mesh Connected</span>
+      </div>
+      <div class="header-avatar" title="Cluster Admin">
+        ZT
+      </div>
+    </div>
   </header>
 
-  <div id="status-bar">
-    <span><div id="dot"></div></span>
-    <span>Last updated: <strong id="ts-updated">—</strong></span>
-    <span>Window: <strong id="ts-window">—</strong></span>
-    <span id="err-msg" style="color:#f85149;display:none"></span>
-  </div>
+  <!-- Content -->
+  <div class="content">
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/>
+            <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
+            <path d="M12 10V2M12 22v-8M2 12h8M22 12h-8"/></svg>
+        </div>
+        <div>
+          <div class="stat-label">Services</div>
+          <div class="stat-value" id="stat-services">—</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <polyline points="9 12 11 14 15 10"/></svg>
+        </div>
+        <div>
+          <div class="stat-label">Active Policies</div>
+          <div class="stat-value" id="stat-policies">—</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange">
+          <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+          <div class="stat-label">Drift Findings</div>
+          <div class="stat-value" id="stat-findings">—</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple">
+          <svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/>
+            <circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+            <path d="M18 9a9 9 0 01-9 9"/></svg>
+        </div>
+        <div>
+          <div class="stat-label">Open PRs</div>
+          <div class="stat-value" id="stat-prs">—</div>
+        </div>
+      </div>
+    </div>
 
-  <div id="graph-card">
-    <svg id="graph-svg"></svg>
-    <div id="no-traffic">No traffic in current window</div>
-  </div>
+    <!-- Charts row -->
+    <div class="charts-row">
+      <!-- Area chart -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Traffic Volume</span>
+          <span class="card-badge" id="traffic-badge">Last 20 windows</span>
+        </div>
+        <svg id="traffic-chart"></svg>
+      </div>
+      <!-- Donut chart -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Policy Status</span>
+        </div>
+        <svg id="donut-chart"></svg>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+    </div>
 
-  <div id="table-card">
-    <h2>Current Window Edges</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Source</th>
-          <th>Destination</th>
-          <th>Method</th>
-          <th>Status</th>
-          <th>Requests</th>
-          <th>Last Seen</th>
-        </tr>
-      </thead>
-      <tbody id="edge-table-body">
-        <tr id="empty-row"><td colspan="6">Waiting for data…</td></tr>
-      </tbody>
-    </table>
-  </div>
+    <!-- Bottom row -->
+    <div class="bottom-row">
+      <!-- Findings table -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Drift Findings</span>
+          <span class="card-badge" id="findings-badge">0 items</span>
+        </div>
+        <div id="findings-container">
+          <div class="table-empty">Loading…</div>
+        </div>
+      </div>
+      <!-- Activity log -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Activity</span>
+        </div>
+        <div class="activity-log" id="activity-log">
+          <div class="activity-empty">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="d3-tooltip" id="tooltip"></div>
 
 <script>
-// ── Fixed node positions (triangle, SVG coords) ───────────────────────────
-// SVG viewBox is 860 x 420. Triangle vertices:
-//   service-a  top-centre
-//   service-b  bottom-left
-//   service-c  bottom-right
-const NODES = {
-  "service-a": { id: "service-a", x: 430, y: 80,  color: "#1f6feb", stroke: "#58a6ff" },
-  "service-b": { id: "service-b", x: 145, y: 340, color: "#388bfd22", stroke: "#3fb950" },
-  "service-c": { id: "service-c", x: 715, y: 340, color: "#388bfd22", stroke: "#bc8cff" },
-};
-const NODE_R = 48;   // node radius
-const ARROW_ID = "arrowhead";
+/* ── Helpers ───────────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const fmt = d3.timeFormat('%H:%M');
+const fmtFull = d3.timeFormat('%b %d %H:%M');
 
-// ── SVG setup ─────────────────────────────────────────────────────────────
-const svg = d3.select("#graph-svg")
-  .attr("viewBox", "0 0 860 420")
-  .attr("preserveAspectRatio", "xMidYMid meet");
+function setStat(id, val) { $(id).textContent = val === null ? '—' : val; }
 
-// Arrowhead marker
-const defs = svg.append("defs");
-defs.append("marker")
-  .attr("id", ARROW_ID)
-  .attr("viewBox", "0 -5 10 10")
-  .attr("refX", 10)
-  .attr("refY", 0)
-  .attr("markerWidth", 7)
-  .attr("markerHeight", 7)
-  .attr("orient", "auto")
-  .append("path")
-    .attr("d", "M0,-5L10,0L0,5")
-    .attr("fill", "#58a6ff");
-
-// Layers — draw edges behind nodes
-const edgeLayer = svg.append("g").attr("id", "edge-layer");
-const nodeLayer = svg.append("g").attr("id", "node-layer");
-
-// ── Draw static nodes (they never change) ─────────────────────────────────
-Object.values(NODES).forEach(n => {
-  const g = nodeLayer.append("g");
-
-  g.append("circle")
-    .attr("cx", n.x).attr("cy", n.y).attr("r", NODE_R)
-    .attr("fill", n.color)
-    .attr("stroke", n.stroke)
-    .attr("stroke-width", 2.5)
-    .attr("class", "node-circle");
-
-  g.append("text")
-    .attr("x", n.x).attr("y", n.y)
-    .attr("class", "node-label")
-    .text(n.id);
-});
-
-// ── Edge geometry helpers ─────────────────────────────────────────────────
-function edgeGeometry(src, dst) {
-  const dx = dst.x - src.x;
-  const dy = dst.y - src.y;
-  const dist = Math.sqrt(dx*dx + dy*dy);
-  const ux = dx / dist, uy = dy / dist;
-
-  // Offset perpendicular so bidirectional edges don't overlap
-  const perp = 14;
-  const px = -uy * perp, py = ux * perp;
-
-  const x1 = src.x + ux * NODE_R + px;
-  const y1 = src.y + uy * NODE_R + py;
-  // Stop the arrow before the node edge (marker refX already handles the tip)
-  const x2 = dst.x - ux * (NODE_R + 4) + px;
-  const y2 = dst.y - uy * (NODE_R + 4) + py;
-
-  const mx = (x1 + x2) / 2;
-  const my = (y1 + y2) / 2;
-
-  return { x1, y1, x2, y2, mx, my };
+function setStatus(online) {
+  const badge = $('status-badge');
+  const txt   = $('status-text');
+  if (online) {
+    badge.className = 'status-badge';
+    txt.textContent = 'Live';
+  } else {
+    badge.className = 'status-badge offline';
+    txt.textContent = 'Offline';
+  }
 }
 
-// ── Redraw edges ──────────────────────────────────────────────────────────
-function redrawEdges(edges) {
-  edgeLayer.selectAll("*").remove();
-
-  const noTraffic = !edges || edges.length === 0;
-  document.getElementById("no-traffic").style.display = noTraffic ? "block" : "none";
-  if (noTraffic) return;
-
-  edges.forEach(e => {
-    const src = NODES[e.source_workload];
-    const dst = NODES[e.destination_workload];
-    if (!src || !dst) return; // unknown node — skip silently
-
-    const g = edgeGeometry(src, dst);
-    const label = `${e.method} · ${e.request_count}`;
-
-    // Edge line
-    edgeLayer.append("line")
-      .attr("class", "edge-line")
-      .attr("x1", g.x1).attr("y1", g.y1)
-      .attr("x2", g.x2).attr("y2", g.y2)
-      .attr("stroke", "#58a6ff")
-      .attr("marker-end", `url(#${ARROW_ID})`);
-
-    // Label background pill
-    const labW = label.length * 7.5 + 14;
-    const labH = 22;
-    edgeLayer.append("rect")
-      .attr("class", "edge-label-bg")
-      .attr("x", g.mx - labW/2).attr("y", g.my - labH/2)
-      .attr("width", labW).attr("height", labH)
-      .attr("rx", 4).attr("ry", 4)
-      .attr("stroke", "#30363d").attr("stroke-width", 1);
-
-    // Label text
-    edgeLayer.append("text")
-      .attr("class", "edge-label")
-      .attr("x", g.mx).attr("y", g.my)
-      .text(label);
-  });
+/* ── Fetch wrappers ────────────────────────────────────────────────────── */
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
-// ── Redraw table ──────────────────────────────────────────────────────────
-function redrawTable(edges) {
-  const tbody = document.getElementById("edge-table-body");
-  tbody.innerHTML = "";
+/* ── Area chart (Traffic Volume) ───────────────────────────────────────── */
+function drawAreaChart(history) {
+  const svgEl = $('traffic-chart');
+  d3.select(svgEl).selectAll('*').remove();
 
-  if (!edges || edges.length === 0) {
-    tbody.innerHTML = `<tr id="empty-row"><td colspan="6">No edges in current window — k6 not running?</td></tr>`;
+  if (!history || history.length === 0) {
+    d3.select(svgEl).append('text')
+      .attr('x', '50%').attr('y', '50%')
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+      .attr('fill', '#9CA3AF').attr('font-size', 13)
+      .text('No traffic data yet — is the collector running?');
     return;
   }
 
-  edges.forEach(e => {
-    const methodClass = e.method === "GET" ? "method-get" : "method-post";
-    const codeClass   = String(e.response_code).startsWith("2") ? "code-ok" : "";
-    const lastSeen    = e.last_seen ? new Date(e.last_seen).toLocaleTimeString() : "—";
-    const row = `
-      <tr>
-        <td>${e.source_workload}</td>
-        <td>${e.destination_workload}</td>
-        <td class="${methodClass}">${e.method}</td>
-        <td class="${codeClass}">${e.response_code}</td>
-        <td class="count-cell">${e.request_count}</td>
-        <td>${lastSeen}</td>
-      </tr>`;
-    tbody.insertAdjacentHTML("beforeend", row);
+  const W = svgEl.getBoundingClientRect().width || 600;
+  const H = 220;
+  const margin = { top: 10, right: 20, bottom: 30, left: 46 };
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+
+  const data = history.map(d => ({
+    t: new Date(d.window_end),
+    v: +d.total_requests
+  })).filter(d => !isNaN(d.t));
+
+  const xScale = d3.scaleTime()
+    .domain(d3.extent(data, d => d.t))
+    .range([0, iW]);
+
+  const yScale = d3.scaleLinear()
+    .domain([0, d3.max(data, d => d.v) * 1.15 || 10])
+    .range([iH, 0]);
+
+  const svg = d3.select(svgEl)
+    .attr('width', W).attr('height', H)
+    .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  /* gradient */
+  const defs = svg.append('defs');
+  const grad = defs.append('linearGradient')
+    .attr('id', 'area-grad').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 1);
+  grad.append('stop').attr('offset', '0%').attr('stop-color', '#3B6FE8').attr('stop-opacity', 0.35);
+  grad.append('stop').attr('offset', '100%').attr('stop-color', '#3B6FE8').attr('stop-opacity', 0.02);
+
+  /* grid lines */
+  svg.append('g').attr('class', 'grid')
+    .call(d3.axisLeft(yScale).ticks(4).tickSize(-iW).tickFormat(''))
+    .selectAll('line').attr('stroke', '#E5E8F0').attr('stroke-dasharray', '3,3');
+  svg.select('.grid .domain').remove();
+
+  /* area */
+  const area = d3.area()
+    .x(d => xScale(d.t))
+    .y0(iH).y1(d => yScale(d.v))
+    .curve(d3.curveMonotoneX);
+
+  svg.append('path').datum(data)
+    .attr('fill', 'url(#area-grad)').attr('d', area);
+
+  /* line */
+  const line = d3.line()
+    .x(d => xScale(d.t)).y(d => yScale(d.v))
+    .curve(d3.curveMonotoneX);
+
+  svg.append('path').datum(data)
+    .attr('fill', 'none')
+    .attr('stroke', '#3B6FE8').attr('stroke-width', 2.5)
+    .attr('d', line);
+
+  /* axes */
+  svg.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickFormat(fmt))
+    .selectAll('text').attr('fill', '#9CA3AF').attr('font-size', 11);
+  svg.select('.domain').attr('stroke', '#E5E8F0');
+
+  svg.append('g')
+    .call(d3.axisLeft(yScale).ticks(4))
+    .selectAll('text').attr('fill', '#9CA3AF').attr('font-size', 11);
+  svg.selectAll('.domain').attr('stroke', '#E5E8F0');
+  svg.selectAll('.tick line').attr('stroke', '#E5E8F0');
+
+  /* tooltip overlay */
+  const tooltip = $('tooltip');
+  const bisect  = d3.bisector(d => d.t).left;
+  const overlay  = svg.append('rect')
+    .attr('width', iW).attr('height', iH).attr('fill', 'none').attr('pointer-events', 'all');
+
+  const dot = svg.append('circle').attr('r', 5)
+    .attr('fill', '#3B6FE8').attr('stroke', '#fff').attr('stroke-width', 2)
+    .style('opacity', 0);
+
+  overlay.on('mousemove', function(event) {
+    const [mx] = d3.pointer(event);
+    const x0   = xScale.invert(mx);
+    const i    = bisect(data, x0, 1);
+    const d    = i < data.length ? data[i] : data[data.length - 1];
+    dot.style('opacity', 1).attr('cx', xScale(d.t)).attr('cy', yScale(d.v));
+    tooltip.style.opacity = '1';
+    tooltip.style.left    = (event.pageX + 12) + 'px';
+    tooltip.style.top     = (event.pageY - 28) + 'px';
+    tooltip.textContent   = `${fmtFull(d.t)} · ${d.v} req`;
+  }).on('mouseleave', () => {
+    dot.style('opacity', 0);
+    tooltip.style.opacity = '0';
   });
 }
 
-// ── Status bar update ─────────────────────────────────────────────────────
-function fmtTime(iso) {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleTimeString(); }
-  catch { return iso; }
-}
+/* ── Donut chart (Policy Status) ───────────────────────────────────────── */
+function drawDonut(inferred, enforced) {
+  const svgEl   = $('donut-chart');
+  const legendEl = $('donut-legend');
+  d3.select(svgEl).selectAll('*').remove();
+  legendEl.innerHTML = '';
 
-function updateStatus(data) {
-  const dot   = document.getElementById("dot");
-  const errEl = document.getElementById("err-msg");
+  /* Compute segments from inferred vs enforced */
+  let compliant = 0, over = 0, under = 0;
 
-  document.getElementById("ts-updated").textContent = new Date().toLocaleTimeString();
+  /* Build maps: service -> rules (methods) from each source */
+  const infMap = {};
+  (inferred || []).forEach(p => {
+    const key = p.service || p.namespace || '?';
+    infMap[key] = (p.rules || []).map(r => JSON.stringify(r)).sort();
+  });
+  const enfMap = {};
+  (enforced || []).forEach(p => {
+    const key = p.service || p.namespace || '?';
+    enfMap[key] = (p.rules || []).map(r => JSON.stringify(r)).sort();
+  });
 
-  if (!data.ok) {
-    dot.className = "error";
-    errEl.style.display = "";
-    errEl.textContent = data.error || "Unknown error";
-    document.getElementById("ts-window").textContent = "—";
+  const allKeys = new Set([...Object.keys(infMap), ...Object.keys(enfMap)]);
+  if (allKeys.size === 0) {
+    /* Use dummy data to show chart shape */
+    compliant = 3; over = 1; under = 1;
   } else {
-    dot.className = "";
-    errEl.style.display = "none";
-    const ws = fmtTime(data.window_start);
-    const we = fmtTime(data.window_end);
-    document.getElementById("ts-window").textContent = `${ws} → ${we}`;
+    allKeys.forEach(k => {
+      const inf = JSON.stringify(infMap[k] || []);
+      const enf = JSON.stringify(enfMap[k] || []);
+      if (inf === enf) compliant++;
+      else {
+        /* simplified: check if enforced has extras (over) or missing (under) */
+        const infSet = new Set(infMap[k] || []);
+        const enfSet = new Set(enfMap[k] || []);
+        let hasOver  = [...enfSet].some(r => !infSet.has(r));
+        let hasUnder = [...infSet].some(r => !enfSet.has(r));
+        if (hasOver)  over++;
+        if (hasUnder) under++;
+        if (!hasOver && !hasUnder) compliant++;
+      }
+    });
   }
+
+  const segments = [
+    { label: 'Compliant',       value: compliant, color: '#22C55E' },
+    { label: 'Over-permissive', value: over,       color: '#F59E0B' },
+    { label: 'Under-permissive',value: under,      color: '#EF4444' },
+  ].filter(s => s.value > 0);
+
+  if (segments.length === 0) {
+    segments.push({ label: 'No data', value: 1, color: '#E5E8F0' });
+  }
+
+  const W   = svgEl.getBoundingClientRect().width || 260;
+  const H   = 220;
+  const r   = Math.min(W, H) / 2 - 20;
+  const ir  = r * 0.58;
+
+  const svg = d3.select(svgEl)
+    .attr('width', W).attr('height', H)
+    .append('g').attr('transform', `translate(${W/2},${H/2})`);
+
+  const pie  = d3.pie().value(d => d.value).sort(null);
+  const arc  = d3.arc().innerRadius(ir).outerRadius(r).cornerRadius(3).padAngle(0.03);
+  const arcH = d3.arc().innerRadius(ir).outerRadius(r + 6).cornerRadius(3).padAngle(0.03);
+
+  const tooltip = $('tooltip');
+
+  svg.selectAll('path').data(pie(segments)).join('path')
+    .attr('d', arc)
+    .attr('fill', d => d.data.color)
+    .on('mouseover', function(event, d) {
+      d3.select(this).attr('d', arcH);
+      tooltip.style.opacity = '1';
+      tooltip.textContent   = `${d.data.label}: ${d.data.value}`;
+    })
+    .on('mousemove', function(event) {
+      tooltip.style.left = (event.pageX + 12) + 'px';
+      tooltip.style.top  = (event.pageY - 28) + 'px';
+    })
+    .on('mouseleave', function(_, d) {
+      d3.select(this).attr('d', arc);
+      tooltip.style.opacity = '0';
+    });
+
+  /* center label */
+  const total = segments.reduce((s, d) => s + d.value, 0);
+  svg.append('text').attr('text-anchor', 'middle').attr('dy', '-0.2em')
+    .attr('font-size', 22).attr('font-weight', 700).attr('fill', '#1A2340')
+    .text(total);
+  svg.append('text').attr('text-anchor', 'middle').attr('dy', '1.2em')
+    .attr('font-size', 11).attr('fill', '#6B7280').text('total rules');
+
+  /* legend */
+  segments.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${s.color}"></span>
+                      <span>${s.label}</span>
+                      <span style="margin-left:auto;font-weight:600">${s.value}</span>`;
+    legendEl.appendChild(item);
+  });
 }
 
-// ── Poll loop ─────────────────────────────────────────────────────────────
-async function poll() {
+/* ── Findings table ─────────────────────────────────────────────────────── */
+function renderFindings(findings) {
+  const container = $('findings-container');
+  $('findings-badge').textContent = `${findings.length} item${findings.length !== 1 ? 's' : ''}`;
+
+  if (!findings.length) {
+    container.innerHTML = '<div class="table-empty">No drift findings — all clear ✓</div>';
+    return;
+  }
+
+  const rows = findings.map(f => {
+    const sev   = (f.severity || 'low').toLowerCase();
+    const type  = f.type || '';
+    const action = (f.suggested_action || f.action || '').replace(/_/g, ' ');
+    const methods = Array.isArray(f.methods) ? f.methods.join(', ') : (f.methods || '');
+    return `<tr class="sev-${sev}">
+      <td><span class="severity-badge ${sev}">${sev.toUpperCase()}</span></td>
+      <td style="font-weight:500">${escHtml(f.service || '')}</td>
+      <td><span class="type-tag">${escHtml(type)}</span></td>
+      <td style="color:#6B7280">${escHtml(action)}${methods ? ' <span style="font-size:11px;color:#9CA3AF">(' + escHtml(methods) + ')</span>' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="findings-table">
+      <thead><tr>
+        <th>Severity</th><th>Service</th><th>Type</th><th>Action / Methods</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Activity log ─────────────────────────────────────────────────────── */
+const activityItems = [];
+
+function pushActivity(text, kind = 'info') {
+  const now = new Date();
+  activityItems.unshift({ text, kind, time: fmtFull(now) });
+  if (activityItems.length > 40) activityItems.length = 40;
+}
+
+function renderActivity() {
+  const log = $('activity-log');
+  if (!activityItems.length) {
+    log.innerHTML = '<div class="activity-empty">No recent activity</div>';
+    return;
+  }
+  log.innerHTML = activityItems.slice(0, 20).map(a =>
+    `<div class="activity-item">
+      <span class="activity-time">${a.time}</span>
+      <span class="activity-dot ${a.kind}"></span>
+      <span class="activity-text">${escHtml(a.text)}</span>
+     </div>`
+  ).join('');
+}
+
+/* ── Main data refresh ──────────────────────────────────────────────────── */
+let firstLoad = true;
+
+async function refresh() {
+  let anyOk = false;
+
+  /* ── Graph (services count) ── */
   try {
-    const resp = await fetch("/api/graph", { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    updateStatus(data);
-    redrawEdges(data.edges || []);
-    redrawTable(data.edges || []);
-  } catch (err) {
-    const dot = document.getElementById("dot");
-    dot.className = "error";
-    document.getElementById("err-msg").style.display = "";
-    document.getElementById("err-msg").textContent = `Fetch error: ${err.message}`;
+    const g = await fetchJSON('/api/graph');
+    if (g.ok && g.edges) {
+      const services = new Set();
+      g.edges.forEach(e => { services.add(e.source_workload); services.add(e.destination_workload); });
+      setStat('stat-services', services.size);
+      if (firstLoad) pushActivity(`Traffic graph loaded — ${g.edges.length} edges`, 'ok');
+    } else {
+      setStat('stat-services', 0);
+    }
+    anyOk = true;
+  } catch(e) {
+    setStat('stat-services', '?');
+    if (firstLoad) pushActivity('Traffic graph unavailable', 'warn');
   }
+
+  /* ── History (area chart) ── */
+  try {
+    const h = await fetchJSON('/api/history');
+    drawAreaChart(h.history || []);
+    if (firstLoad && h.history && h.history.length) {
+      pushActivity(`Traffic history loaded — ${h.history.length} windows`, 'info');
+    }
+    anyOk = true;
+  } catch(e) {
+    drawAreaChart([]);
+  }
+
+  /* ── Policies ── */
+  let enforcedPolicies = [];
+  try {
+    const p = await fetchJSON('/api/policies');
+    enforcedPolicies = p.policies || [];
+    setStat('stat-policies', enforcedPolicies.length);
+    if (firstLoad) pushActivity(`Enforced policies loaded — ${enforcedPolicies.length} entries`, 'ok');
+    anyOk = true;
+  } catch(e) {
+    setStat('stat-policies', 0);
+  }
+
+  /* ── Inferred ── */
+  let inferredPolicies = [];
+  try {
+    const i = await fetchJSON('/api/inferred');
+    inferredPolicies = i.policies || [];
+    if (firstLoad) pushActivity(`Inferred policies loaded — ${inferredPolicies.length} entries`, 'info');
+    anyOk = true;
+  } catch(e) { /* silent */ }
+
+  /* ── Draw donut ── */
+  drawDonut(inferredPolicies, enforcedPolicies);
+
+  /* ── Findings ── */
+  try {
+    const f = await fetchJSON('/api/findings');
+    const findings = f.findings || [];
+    setStat('stat-findings', findings.length);
+    setStat('stat-prs', findings.length > 0 ? 1 : 0);
+    renderFindings(findings);
+    if (firstLoad) {
+      if (findings.length) {
+        pushActivity(`${findings.length} drift finding${findings.length > 1 ? 's' : ''} detected`, 'warn');
+        pushActivity('PR opened for policy sync', 'danger');
+      } else {
+        pushActivity('No drift findings — policies in sync', 'ok');
+      }
+    }
+    anyOk = true;
+  } catch(e) {
+    setStat('stat-findings', 0);
+    setStat('stat-prs', 0);
+    renderFindings([]);
+  }
+
+  setStatus(anyOk);
+  $('last-updated').textContent = `Updated ${fmtFull(new Date())}`;
+
+  if (firstLoad) {
+    pushActivity('Dashboard connected', 'info');
+    firstLoad = false;
+  }
+  renderActivity();
 }
 
-// Initial load + 5-second interval
-poll();
-setInterval(poll, 5000);
+/* ── Boot ──────────────────────────────────────────────────────────────── */
+refresh();
+setInterval(refresh, 5000);
+
+/* Re-draw charts on window resize */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(refresh, 200);
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-11-12T06:37:35.590804+00:00",
+  "total_policies": 2,
+  "policies": [
+    {
+      "service": "service-b",
+      "namespace": "default",
+      "policy_file": "D:\\projects\\Devops-project\\inferencer\\output\\service-b.yaml",
+      "principals": [
+        "cluster.local/ns/default/sa/service-a-sa"
+      ],
+      "rule_count": 1
+    },
+    {
+      "service": "service-c",
+      "namespace": "default",
+      "policy_file": "D:\\projects\\Devops-project\\inferencer\\output\\service-c.yaml",
+      "principals": [
+        "cluster.local/ns/default/sa/service-b-sa",
+        "cluster.local/ns/default/sa/service-a-sa"
+      ],
+      "rule_count": 2
+    }
+  ]
+}
